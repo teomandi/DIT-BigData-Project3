@@ -52,7 +52,7 @@ class PageRanker(object):
     def iterate(self):
         iter_tm = time.time()
         p = self.rank.copy()
-        for src in self.graph:
+        for idx, src in enumerate(self.graph):
             s = 0
             for dest in self.graph[src].edges:
                 if dest in self.graph:
@@ -62,24 +62,45 @@ class PageRanker(object):
                     # )
                     s += self.graph[dest].importance * p[self.nodeset.index(dest)]
             self.rank[self.nodeset.index(src)] = s
+            percent = (idx+1)*100/len(self.nodeset)
+            if percent % 5 == 0:
+                print("Current progress: {:.1f}%".format(percent))
             # print("---  *  ---")
         print("Iteration took {:.3f}".format(time.time() - iter_tm))
 
     # weight = 1 : The bottom 20
     # weight = -1 : The top 20
     def top(self, n, weight=1):
-        return [self.rank[i] for i in (weight*self.rank).argsort()[:20]]
+        return [(idx, self.rank[idx]) for idx in (weight*self.rank).argsort()[:n]]
 
 
 if __name__ == '__main__':
+    starting_tm = time.time()
+
     # path = "example-graph.txt"
     path = "web-Google.txt"
 
     pr = PageRanker(path)
-    for i in range(2):
+    for i in range(10):
         pr.iterate()
-    print("Top 20: ", pr.top(20, -1))
-    print("Bottom 20: ", pr.top(20, 1))
+
+    t20 = pr.top(2, -1)
+    print("Top 20: ", t20)
+    f = open('a_top20.txt', 'w')
+    f.write("nodeId,rank\n")
+    for (node_id, rank) in t20:
+        f.write(str(node_id) + ",{:.3f}\n".format(rank))
+    f.close()
+
+    b20 = pr.top(2, 1)
+    print("Bottom 20: ", b20)
+    f = open('a_bottom20.txt', 'w')
+    f.write("nodeId,rank\n")
+    for (node_id, rank) in b20:
+        f.write(str(node_id) + ",{:.3f}\n".format(rank))
+    f.close()
+
+    print("Done took {:.3f}".format(time.time() - starting_tm))
 
 
 
