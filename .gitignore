@@ -1,0 +1,8 @@
+*.zip
+*.gz
+*.txt
+*.sparse
+*.csv
+
+__pycache__/
+.idea
