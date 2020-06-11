@@ -22,51 +22,58 @@ class PageRanker(object):
 
         init_tm = time.time()
         with open(graph_file_path) as fp:
-
             line = fp.readline()
             while line:
                 if "#" in line:
-                    print("comment: ", line[:-1])
+                    print("Found comment: ", line[:-1])
                     line = fp.readline()  # in the end
                     continue
                 src, dest = [int(i) for i in line.split()]
                 self.nodeset.add(src)
-                self.nodeset.add(dest)
-
                 if src not in self.graph:
-                    self.graph[src] = Node(src, dest)
-                else:
-                    self.graph[src].add_edge(dest)
+                    self.graph[src] = Node(len(self.nodeset)-1, src)
 
+                self.nodeset.add(dest)
+                if dest not in self.graph:
+                    self.graph[dest] = Node(len(self.nodeset)-1, dest)
+
+                self.graph[src].add_edge(self.graph[dest])
                 line = fp.readline()  # in the end
+
         self.nodeset = list(self.nodeset)
+        self.length = len(self.nodeset)
+        self.rank = np.ones(self.length)
+
         print("Init took {:.3f}".format(time.time() - init_tm))
-        print("nodes: ", len(self.nodeset))
+        print("nodes: ", self.length)
         print("graph: ", len(self.graph))
+
         init_tm = time.time()
         for _key in self.graph:
             self.graph[_key].compute_importance()
         print("Importance took {:.3f}".format(time.time() - init_tm))
-        self.rank = np.ones(len(self.nodeset))
+
+        vector_tm = time.time()
+        for _key in self.graph:
+            values = []
+            cols = []
+            for dest in self.graph[_key].edges:
+                cols.append(dest.index)
+                values.append(dest.importance)
+            self.graph[_key].set_vector(self.length, cols, values)
+        print("Vector took {:.3f}".format(time.time() - vector_tm))
 
     def iterate(self):
         iter_tm = time.time()
         p = self.rank.copy()
         for idx, src in enumerate(self.graph):
-            s = 0
-            for dest in self.graph[src].edges:
-                if dest in self.graph:
-                    # print(
-                    #   self.nodeset.index(src), ") ",
-                    #   self.graph[dest].importance, " * ", p[self.nodeset.index(dest)]
-                    # )
-                    s += self.graph[dest].importance * p[self.nodeset.index(dest)]
-            self.rank[self.nodeset.index(src)] = s
-            percent = (idx+1)*100/len(self.nodeset)
-            if percent % 5 == 0:
-                print("Current progress: {:.1f}%".format(percent))
-            # print("---  *  ---")
+            self.rank[self.graph[src].index] = (self.graph[src].vector * p)[0]
         print("Iteration took {:.3f}".format(time.time() - iter_tm))
+
+    def print_nodes(self):
+        for _key in self.graph:
+            node = self.graph[_key]
+            print("KEY ", node.key, "edges: ", node.edges)
 
     # weight = 1 : The bottom 20
     # weight = -1 : The top 20
@@ -80,20 +87,21 @@ if __name__ == '__main__':
     # path = "example-graph.txt"
     path = "web-Google.txt"
 
+    iterations = 10
+    N = 20
     pr = PageRanker(path)
-    for i in range(10):
+
+    for i in range(iterations):
         pr.iterate()
 
-    t20 = pr.top(2, -1)
-    print("Top 20: ", t20)
+    t20 = pr.top(N, -1)
     f = open('a_top20.txt', 'w')
     f.write("nodeId,rank\n")
     for (node_id, rank) in t20:
         f.write(str(node_id) + ",{:.3f}\n".format(rank))
     f.close()
 
-    b20 = pr.top(2, 1)
-    print("Bottom 20: ", b20)
+    b20 = pr.top(N, 1)
     f = open('a_bottom20.txt', 'w')
     f.write("nodeId,rank\n")
     for (node_id, rank) in b20:
