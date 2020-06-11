@@ -2,6 +2,8 @@ import scipy.sparse as sp
 import numpy as np
 import time
 import pickle
+# from matplotlib import pyplot as plt
+
 from node import Node
 
 
@@ -77,7 +79,7 @@ class PageRanker(object):
 
     def improved_iterate(self):
         iter_tm = time.time()
-        a = 0.2
+        a = 0.85
         na = (1 - a) * np.ones(self.length)
         p = self.rank.copy()
         for idx, src in enumerate(self.graph):
@@ -96,7 +98,7 @@ if __name__ == '__main__':
 
     # path = "example-graph.txt"
     path = "web-Google.txt"
-    iterations = 10
+    iterations = 200
     N = 20
     # method = "simple"
     method = "improved"
@@ -104,16 +106,17 @@ if __name__ == '__main__':
     pr = PageRanker(path, method)
     for i in range(iterations):
         pr.iterate()
+    pickle_store("results/b21_200_res.rank", pr.rank)
 
     t20 = pr.top(N, -1)
-    f = open('results/b12_top20.txt', 'w')
+    f = open('results/b21_200_top20.txt', 'w')
     f.write("nodeId,rank\n")
     for (node_id, rank) in t20:
         f.write(str(node_id) + "," + str(rank) + "\n")
     f.close()
 
     b20 = pr.top(N, 1)
-    f = open('results/b12_bottom20.txt', 'w')
+    f = open('results/b21_200_bottom20.txt', 'w')
     f.write("nodeId,rank\n")
     for (node_id, rank) in b20:
         f.write(str(node_id) + "," + str(rank) + "\n")
