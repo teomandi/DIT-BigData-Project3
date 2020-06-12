@@ -1,11 +1,9 @@
-import scipy.sparse as sp
 import numpy as np
 import time
 import pickle
-# from matplotlib import pyplot as plt
-
+import os
 from node import Node
-
+from matplotlib import pyplot as plt
 
 def pickle_store(filename, item):
     with open(filename, 'wb') as file:
@@ -70,14 +68,14 @@ class PageRanker(object):
             self.graph[_key].set_vector(self.length, cols, values)
         print("Vector took {:.3f}".format(time.time() - vector_tm))
 
-    def simple_iterate(self):
+    def simple_iterate(self, iter):
         iter_tm = time.time()
         p = self.rank.copy()
         for idx, src in enumerate(self.graph):
             self.rank[self.graph[src].index] = (self.graph[src].vector * p)[0]
-        print("Iteration took {:.3f}".format(time.time() - iter_tm))
+        print(iter, ") Iteration took {:.3f}".format(time.time() - iter_tm))
 
-    def improved_iterate(self):
+    def improved_iterate(self, iter):
         iter_tm = time.time()
         a = 0.85
         na = (1 - a) * np.ones(self.length)
@@ -85,45 +83,73 @@ class PageRanker(object):
         for idx, src in enumerate(self.graph):
             self.rank[self.graph[src].index] = (self.graph[src].vector * p)[0]
         self.rank = a * self.rank + na
-        print("Iteration took {:.3f}".format(time.time() - iter_tm))
+        print(iter, ") Iteration took {:.3f}".format(time.time() - iter_tm))
 
     # weight = 1 : The bottom 20
     # weight = -1 : The top 20
     def top(self, n, weight=1):
         return [(idx, self.rank[idx]) for idx in (weight*self.rank).argsort()[:n]]
 
+    def reset(self):
+        self.rank = np.ones(self.length)
+
+    def create_plot(self, store_path):
+        franks = self.rank.round()
+        fmin = int(franks.min())
+        fmax = int(franks.max())
+        counters = {key: 0 for key in range(fmin, fmax + 1)}
+        for r in franks:
+            counters[int(r)] += 1
+        ranks_values = counters.keys()
+        ranks_counts = counters.values()
+        plt.scatter(ranks_values, ranks_counts, c='g', marker='x', label='www')
+        plt.grid()
+        plt.xlabel("PageRank")
+        plt.ylabel("Counts")
+        plt.yscale("symlog")
+        plt.xscale("symlog")
+        plt.legend()
+        plt.savefig(store_path)
+
+    def store_top_results(self, N, w, store_path):
+        results = self.top(N, w)
+        f = open(store_path, 'w')
+        f.write("nodeId,rank\n")
+        for (node_id, rank) in results:
+            f.write(str(node_id) + "," + str(rank) + "\n")
+        f.close()
+
+
+def evaluate():
+    starting_tm = time.time()
+    graph_path = "web-Google.txt"
+    # graph_path = "example-graph.txt"
+    iterations = [10, 50, 100, 200]
+    if not os.path.isdir("results"):
+        os.mkdir("results")
+    ranks_dir = os.path.join("results", "ranks")
+    plots_dir = os.path.join("results", "plots")
+    results_dir = os.path.join("results", "results")
+
+    if not os.path.isdir(ranks_dir):
+        os.mkdir(ranks_dir)
+    if not os.path.isdir(plots_dir):
+        os.mkdir(plots_dir)
+    if not os.path.isdir(results_dir):
+        os.mkdir(results_dir)
+    # method:
+    method = "simple"
+    a = 1
+    pagerank = PageRanker(graph_path, method)
+    for i in range(iterations[-1]):
+        pagerank.iterate(i)
+        if i+1 in iterations:
+            pagerank.store_top_results(20, -1, os.path.join(results_dir, method+str(a)+"_"+str(i)+"_top20.txt"))
+            pagerank.store_top_results(20, 1, os.path.join(results_dir, method+str(a)+"_"+str(i)+"_bottom20.txt"))
+            pagerank.create_plot(os.path.join(results_dir, method+str(a)+"_"+str(i)+".png"))
+            print("Results stored for i: ", )
+            print(i+1, ") Done took {:.3f}".format(time.time() - starting_tm))
+
 
 if __name__ == '__main__':
-    starting_tm = time.time()
-
-    # path = "example-graph.txt"
-    path = "web-Google.txt"
-    iterations = 200
-    N = 20
-    # method = "simple"
-    method = "improved"
-
-    pr = PageRanker(path, method)
-    for i in range(iterations):
-        pr.iterate()
-    pickle_store("results/b21_200_res.rank", pr.rank)
-
-    t20 = pr.top(N, -1)
-    f = open('results/b21_200_top20.txt', 'w')
-    f.write("nodeId,rank\n")
-    for (node_id, rank) in t20:
-        f.write(str(node_id) + "," + str(rank) + "\n")
-    f.close()
-
-    b20 = pr.top(N, 1)
-    f = open('results/b21_200_bottom20.txt', 'w')
-    f.write("nodeId,rank\n")
-    for (node_id, rank) in b20:
-        f.write(str(node_id) + "," + str(rank) + "\n")
-    f.close()
-
-    print("Done took {:.3f}".format(time.time() - starting_tm))
-
-
-
-
+    evaluate()
