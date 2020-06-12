@@ -4,6 +4,8 @@ import pickle
 import os
 from node import Node
 from matplotlib import pyplot as plt
+import argparse
+
 
 def pickle_store(filename, item):
     with open(filename, 'wb') as file:
@@ -26,7 +28,7 @@ class PageRanker(object):
             return
         self.graph = {}
         self.nodeset = set()
-        # parsing the node file
+        print("Parsing the Graph file")
         init_tm = time.time()
         with open(graph_file_path) as fp:
             line = fp.readline()
@@ -49,15 +51,16 @@ class PageRanker(object):
         self.length = len(self.nodeset)
         self.rank = np.ones(self.length)
         # some prints
-        print("Init took {:.3f}".format(time.time() - init_tm))
+        print("Parse took {:.3f}".format(time.time() - init_tm))
         print("nodes: ", self.length)
         print("graph: ", len(self.graph))
-        # computes the importance for each node
+        print("Calculating the importance of each node")
         init_tm = time.time()
         for _key in self.graph:
             self.graph[_key].compute_importance()
         print("Importance took {:.3f}".format(time.time() - init_tm))
         # calculates the vector for each node
+        print("Creating the vectors of each node")
         vector_tm = time.time()
         for _key in self.graph:
             values = []
@@ -66,24 +69,35 @@ class PageRanker(object):
                 cols.append(dest.index)
                 values.append(dest.importance)
             self.graph[_key].set_vector(self.length, cols, values)
-        print("Vector took {:.3f}".format(time.time() - vector_tm))
+        print("Vectorizing took {:.3f}".format(time.time() - vector_tm))
 
-    def simple_iterate(self, iter):
+    def simple_iterate(self, iter, a=None, convergence=False, tol=1.96e-6):
         iter_tm = time.time()
         p = self.rank.copy()
         for idx, src in enumerate(self.graph):
             self.rank[self.graph[src].index] = (self.graph[src].vector * p)[0]
         print(iter, ") Iteration took {:.3f}".format(time.time() - iter_tm))
+        if convergence:
+            err = sum([abs(p[i] - self.rank[i]) for i in range(self.length)])
+            if err < self.length * tol:
+                print("It converged on iter :", iter, "!!!")
+                return True
+        return False
 
-    def improved_iterate(self, iter):
+    def improved_iterate(self, iter, a=0.85, convergence=False, tol=1.96e-6):
         iter_tm = time.time()
-        a = 0.85
         na = (1 - a) * np.ones(self.length)
         p = self.rank.copy()
         for idx, src in enumerate(self.graph):
             self.rank[self.graph[src].index] = (self.graph[src].vector * p)[0]
         self.rank = a * self.rank + na
         print(iter, ") Iteration took {:.3f}".format(time.time() - iter_tm))
+        if convergence:
+            err = sum([abs(p[i] - self.rank[i]) for i in range(self.length)])
+            if err < self.length * tol:
+                print("It converged on iter :", iter, "!!!")
+                return True
+        return False
 
     # weight = 1 : The bottom 20
     # weight = -1 : The top 20
@@ -93,7 +107,7 @@ class PageRanker(object):
     def reset(self):
         self.rank = np.ones(self.length)
 
-    def create_plot(self, store_path):
+    def create_plot(self, store_path, idx):
         franks = self.rank.round()
         fmin = int(franks.min())
         fmax = int(franks.max())
@@ -102,7 +116,8 @@ class PageRanker(object):
             counters[int(r)] += 1
         ranks_values = counters.keys()
         ranks_counts = counters.values()
-        plt.scatter(ranks_values, ranks_counts, c='g', marker='x', label='www')
+        plt.figure(idx)
+        plt.scatter(ranks_values, ranks_counts, c='b', marker='x', label='www')
         plt.grid()
         plt.xlabel("PageRank")
         plt.ylabel("Counts")
@@ -120,36 +135,130 @@ class PageRanker(object):
         f.close()
 
 
-def evaluate():
-    starting_tm = time.time()
-    graph_path = "web-Google.txt"
-    # graph_path = "example-graph.txt"
-    iterations = [10, 50, 100, 200]
+def make_dirs():
     if not os.path.isdir("results"):
         os.mkdir("results")
     ranks_dir = os.path.join("results", "ranks")
     plots_dir = os.path.join("results", "plots")
     results_dir = os.path.join("results", "results")
-
     if not os.path.isdir(ranks_dir):
         os.mkdir(ranks_dir)
     if not os.path.isdir(plots_dir):
         os.mkdir(plots_dir)
     if not os.path.isdir(results_dir):
         os.mkdir(results_dir)
-    # method:
-    method = "simple"
-    a = 1
+    return ranks_dir, plots_dir, results_dir
+
+
+def evaluate(graph_path, method, a=None):
+    print("Evaluated starts")
+    if method == "simple":
+        a = ""  # for the file names
+    starting_tm = time.time()
+    iterations = [10, 50, 100, 200]
+    ranks_dir, plots_dir, results_dir = make_dirs()
     pagerank = PageRanker(graph_path, method)
     for i in range(iterations[-1]):
-        pagerank.iterate(i)
+        pagerank.iterate(i, a)
         if i+1 in iterations:
-            pagerank.store_top_results(20, -1, os.path.join(results_dir, method+str(a)+"_"+str(i)+"_top20.txt"))
-            pagerank.store_top_results(20, 1, os.path.join(results_dir, method+str(a)+"_"+str(i)+"_bottom20.txt"))
-            pagerank.create_plot(os.path.join(results_dir, method+str(a)+"_"+str(i)+".png"))
-            print("Results stored for i: ", )
-            print(i+1, ") Done took {:.3f}".format(time.time() - starting_tm))
+            pagerank.store_top_results(20, -1, os.path.join(results_dir, method+str(a)+"_"+str(i+1)+"_top20.txt"))
+            pagerank.store_top_results(20, 1, os.path.join(results_dir, method+str(a)+"_"+str(i+1)+"_bottom20.txt"))
+            pagerank.create_plot(os.path.join(plots_dir, method+str(a)+"_"+str(i+1)+".png"), i+1)
+            print("Iteration results stored (", i+1, ") Done took {:.3f}".format(time.time() - starting_tm))
+
+
+def eval_converge(graph_path, method, a=None):
+    print("Evaluated starts")
+    pagerank = PageRanker(graph_path, method)
+    iter = 0
+    while True:
+        if pagerank.iterate(iter, a, convergence=True):
+            break
+        iter += 1
+    print("converged into: ", iter)
 
 
 if __name__ == '__main__':
-    evaluate()
+    parser = argparse.ArgumentParser(
+        description='Page Rank. Project 3 Big-Data 2020',
+        epilog='Enjoy the program! :)'
+    )
+    parser.add_argument(
+        '-p',
+        '--path',
+        type=str,
+        help="The path for the .txt file with the Graph",
+        required=True
+    )
+    parser.add_argument(
+        '-m',
+        '--method',
+        type=str,
+        help='Selected method for PageRanking. Accepted Options are \'simple\', \'improved\'',
+        action='store',
+        required=True
+    )
+    parser.add_argument(
+        '-a',
+        '--a',
+        type=float,
+        help='a is numeric value',
+        action='store',
+    )
+    parser.add_argument(
+        '-i',
+        '--iterations',
+        type=int,
+        help='How many iterations the program to perform. On evaluation it is not required',
+        action='store',
+        required=True
+    )
+    parser.add_argument(
+        '-c',
+        '--converge',
+        help="Enables the convergence functionality",
+        default=False,
+        action='store_true'
+    )
+    parser.add_argument(
+        '-e',
+        '--eval',
+        help="Performs evaluations",
+        default=False,
+        action='store_true'
+    )
+    args = parser.parse_args()
+    arguments = vars(args)
+    print("Given args: ", arguments)
+
+    if arguments['method'] == "improved":
+        if arguments['a'] is None:
+            print("Error: a value is not set")
+
+    if arguments["eval"]:
+        evaluate(arguments["path"], arguments["method"], arguments["a"])
+    elif arguments["converge"]:
+        eval_converge(arguments["path"], arguments["method"], arguments["a"])
+    else:
+        starting_tm = time.time()
+        ranks_dir, plots_dir, results_dir = make_dirs()
+        pagerank = PageRanker(arguments["path"], arguments["method"])
+        for i in range(arguments["iterations"]):
+            pagerank.iterate(i, arguments['a'])
+        pagerank.store_top_results(20, -1,
+                                   os.path.join(
+                                       results_dir,
+                                       arguments["method"] + str(arguments["a"]) +
+                                       "_" + str(arguments["iterations"]) + "_top20.txt")
+                                   )
+        pagerank.store_top_results(20, 1,
+                                   os.path.join(
+                                       results_dir,
+                                       arguments["method"] + str(arguments["a"]) +
+                                       "_" + str(arguments["iterations"]) + "_bottom20.txt"))
+        pagerank.create_plot(
+            os.path.join(plots_dir, arguments["method"] + str(arguments["a"]) +
+                         "_" + str(arguments["iterations"]) + ".png"), arguments["iterations"]
+        )
+        print("Iteration results stored (", arguments["iterations"],
+              ") Done took {:.3f}".format(time.time() - starting_tm))
