@@ -211,7 +211,6 @@ if __name__ == '__main__':
         type=int,
         help='How many iterations the program to perform. On evaluation it is not required',
         action='store',
-        required=True
     )
     parser.add_argument(
         '-c',
@@ -234,12 +233,15 @@ if __name__ == '__main__':
     if arguments['method'] == "improved":
         if arguments['a'] is None:
             print("Error: a value is not set")
-
+            exit()
     if arguments["eval"]:
         evaluate(arguments["path"], arguments["method"], arguments["a"])
     elif arguments["converge"]:
         eval_converge(arguments["path"], arguments["method"], arguments["a"])
     else:
+        if arguments['iterations'] is None:
+            print("Error: No iterations mentioned")
+            exit()
         starting_tm = time.time()
         ranks_dir, plots_dir, results_dir = make_dirs()
         pagerank = PageRanker(arguments["path"], arguments["method"])
