@@ -55,7 +55,7 @@ The program create a directory for the results. inside it created three folders:
 - results: In this folder the top and bottom 20 csv are stored. Files format: 
 `<method>_<a value>_<iterations>_<bottom20 or top20>.txt`
 - plots: In this folder the histogram plots are stored. Files format: `<method>_<a value>_<iterations>.png`
-- ranks: That was a folder for development help. It is no more used.
+- ranks: That was a folder for development purpose. It is no more used.
 
 ---
 

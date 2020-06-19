@@ -102,27 +102,32 @@ class PageRanker(object):
     # weight = 1 : The bottom 20
     # weight = -1 : The top 20
     def top(self, n, weight=1):
-        return [(idx, self.rank[idx]) for idx in (weight*self.rank).argsort()[:n]]
+        return [(self.nodeset[idx], self.rank[idx]) for idx in (weight*self.rank).argsort()[:n]]
 
     def reset(self):
         self.rank = np.ones(self.length)
 
-    def create_plot(self, store_path, idx):
-        franks = self.rank.round()
-        fmin = int(franks.min())
-        fmax = int(franks.max())
-        counters = {key: 0 for key in range(fmin, fmax + 1)}
-        for r in franks:
-            counters[int(r)] += 1
-        ranks_values = counters.keys()
-        ranks_counts = counters.values()
+    def create_plot(self, store_path, idx, normalized=True):
+        print("Creating plot at ", store_path)
+        if normalized:
+            franks = np.ceil(self.rank)
+            (ranks_values, ranks_counts) = np.unique(franks, return_counts=True)
+            print("ranks_counts: ", len(ranks_counts), "ranks_values: ", len(ranks_values))
+            print("Counts: ", ranks_counts)
+            print("Values: ", ranks_values)
+            if ranks_values[0] == 0:
+                ranks_values[0] = 1  # <----
+
+        else:
+            (ranks_values, ranks_counts) = np.unique(self.rank, return_counts=True)
+            print("ranks_counts: ", ranks_counts.shape, "ranks_values: ", ranks_values.shape)
         plt.figure(idx)
         plt.scatter(ranks_values, ranks_counts, c='b', marker='x', label='www')
         plt.grid()
         plt.xlabel("PageRank")
         plt.ylabel("Counts")
-        plt.yscale("symlog")
-        plt.xscale("symlog")
+        plt.yscale("log")
+        plt.xscale("log")  # symlog
         plt.legend()
         plt.savefig(store_path)
 
@@ -136,11 +141,12 @@ class PageRanker(object):
 
 
 def make_dirs():
-    if not os.path.isdir("results"):
-        os.mkdir("results")
-    ranks_dir = os.path.join("results", "ranks")
-    plots_dir = os.path.join("results", "plots")
-    results_dir = os.path.join("results", "results")
+    res_d = "final_results"
+    if not os.path.isdir(res_d):
+        os.mkdir(res_d)
+    ranks_dir = os.path.join(res_d, "ranks")
+    plots_dir = os.path.join(res_d, "plots")
+    results_dir = os.path.join(res_d, "results")
     if not os.path.isdir(ranks_dir):
         os.mkdir(ranks_dir)
     if not os.path.isdir(plots_dir):
@@ -151,7 +157,7 @@ def make_dirs():
 
 
 def evaluate(graph_path, method, a=None):
-    print("Evaluated starts")
+    print("Evaluate starts")
     if method == "simple":
         a = ""  # for the file names
     starting_tm = time.time()
@@ -168,7 +174,7 @@ def evaluate(graph_path, method, a=None):
 
 
 def eval_converge(graph_path, method, a=None):
-    print("Evaluated starts")
+    print("Converge starts")
     pagerank = PageRanker(graph_path, method)
     iter = 0
     while True:
@@ -210,7 +216,7 @@ if __name__ == '__main__':
         '--iterations',
         type=int,
         help='How many iterations the program to perform. On evaluation it is not required',
-        action='store',
+        action='store'
     )
     parser.add_argument(
         '-c',
@@ -247,6 +253,8 @@ if __name__ == '__main__':
         pagerank = PageRanker(arguments["path"], arguments["method"])
         for i in range(arguments["iterations"]):
             pagerank.iterate(i, arguments['a'])
+        if arguments["a"] is None:
+            arguments["a"] = ""
         pagerank.store_top_results(20, -1,
                                    os.path.join(
                                        results_dir,
