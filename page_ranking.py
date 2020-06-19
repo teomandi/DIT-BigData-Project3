@@ -27,7 +27,7 @@ class PageRanker(object):
             print("Error: unknown method")
             return
         self.graph = {}
-        self.nodeset = set()
+        self.nodeset = []
         print("Parsing the Graph file")
         init_tm = time.time()
         with open(graph_file_path) as fp:
@@ -38,16 +38,15 @@ class PageRanker(object):
                     line = fp.readline()  # in the end
                     continue
                 src, dest = [int(i) for i in line.split()]
-                self.nodeset.add(src)
                 if src not in self.graph:
+                    self.nodeset.append(src)
                     self.graph[src] = Node(len(self.nodeset)-1, src)
-                self.nodeset.add(dest)
                 if dest not in self.graph:
+                    self.nodeset.append(dest)
                     self.graph[dest] = Node(len(self.nodeset)-1, dest)
                 self.graph[src].add_edge(self.graph[dest])
                 line = fp.readline()  # in the end
         # sets variables
-        self.nodeset = list(self.nodeset)
         self.length = len(self.nodeset)
         self.rank = np.ones(self.length)
         # some prints
@@ -113,11 +112,10 @@ class PageRanker(object):
             franks = np.ceil(self.rank)
             (ranks_values, ranks_counts) = np.unique(franks, return_counts=True)
             print("ranks_counts: ", len(ranks_counts), "ranks_values: ", len(ranks_values))
-            print("Counts: ", ranks_counts)
-            print("Values: ", ranks_values)
+            # print("Counts: ", ranks_counts)
+            # print("Values: ", ranks_values)
             if ranks_values[0] == 0:
                 ranks_values[0] = 1  # <----
-
         else:
             (ranks_values, ranks_counts) = np.unique(self.rank, return_counts=True)
             print("ranks_counts: ", ranks_counts.shape, "ranks_values: ", ranks_values.shape)
@@ -141,7 +139,7 @@ class PageRanker(object):
 
 
 def make_dirs():
-    res_d = "final_results"
+    res_d = "results"
     if not os.path.isdir(res_d):
         os.mkdir(res_d)
     ranks_dir = os.path.join(res_d, "ranks")
